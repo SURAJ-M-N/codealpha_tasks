@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reckon — a calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-1:#0a0e27;
+    --bg-2:#241654;
+    --bg-3:#3d1f5c;
+    --glass:rgba(255,255,255,0.06);
+    --glass-border:rgba(255,255,255,0.14);
+    --text-main:#f5f3ff;
+    --text-dim:#a8a3c7;
+    --accent-op:#ff9f5a;
+    --accent-op-glow:rgba(255,159,90,0.5);
+    --accent-eq:#6ee7b7;
+    --accent-eq-glow:rgba(110,231,183,0.5);
+    --accent-clear:#ff6b8a;
+    --key-bg:rgba(255,255,255,0.04);
+    --key-bg-hover:rgba(255,255,255,0.09);
+  }
+
+  *{box-sizing:border-box;}
+
+  html,body{
+    margin:0;
+    padding:0;
+    height:100%;
+    font-family:'Manrope',sans-serif;
+    overflow:hidden;
+  }
+
+  body{
+    position:relative;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--bg-1);
+    padding:24px;
+  }
+
+  /* ---------- Aurora background ---------- */
+  .aurora{
+    position:fixed;
+    inset:0;
+    z-index:0;
+    background:linear-gradient(160deg,var(--bg-1) 0%,var(--bg-2) 55%,var(--bg-3) 100%);
+    overflow:hidden;
+  }
+  .blob{
+    position:absolute;
+    border-radius:50%;
+    filter:blur(70px);
+    opacity:0.55;
+    will-change:transform;
+  }
+  .blob.b1{
+    width:480px;height:480px;
+    background:radial-gradient(circle at 30% 30%, #ff9f5a, transparent 70%);
+    top:-10%; left:-10%;
+    animation:drift1 22s ease-in-out infinite;
+  }
+  .blob.b2{
+    width:420px;height:420px;
+    background:radial-gradient(circle at 60% 40%, #6ee7b7, transparent 70%);
+    bottom:-15%; right:-10%;
+    animation:drift2 26s ease-in-out infinite;
+  }
+  .blob.b3{
+    width:380px;height:380px;
+    background:radial-gradient(circle at 50% 50%, #8b7cf6, transparent 70%);
+    top:40%; left:55%;
+    animation:drift3 30s ease-in-out infinite;
+  }
+  @keyframes drift1{
+    0%,100%{transform:translate(0,0) scale(1);}
+    50%{transform:translate(60px,80px) scale(1.15);}
+  }
+  @keyframes drift2{
+    0%,100%{transform:translate(0,0) scale(1);}
+    50%{transform:translate(-70px,-40px) scale(1.1);}
+  }
+  @keyframes drift3{
+    0%,100%{transform:translate(0,0) scale(1);}
+    50%{transform:translate(-40px,60px) scale(0.9);}
+  }
+  .grain{
+    position:absolute;
+    inset:0;
+    opacity:0.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .blob{animation:none !important;}
+  }
+
+  /* ---------- Calculator shell ---------- */
+  .app-wrap{
+    position:relative;
+    z-index:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:14px;
+    width:100%;
+    max-width:380px;
+    animation:riseIn 0.7s cubic-bezier(.2,.9,.25,1) both;
+  }
+  @keyframes riseIn{
+    from{opacity:0; transform:translateY(24px) scale(0.97);}
+    to{opacity:1; transform:translateY(0) scale(1);}
+  }
+
+  .app-title{
+    margin:0 0 2px 0;
+    font-size:22px;
+    font-weight:800;
+    color:var(--text-main);
+    letter-spacing:-0.02em;
+    text-align:center;
+    background:linear-gradient(135deg, #ffffff 40%, var(--text-dim) 100%);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    text-shadow:0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  .calc{
+    width:100%;
+    background:var(--glass);
+    border:1px solid var(--glass-border);
+    border-radius:28px;
+    padding:22px;
+    backdrop-filter:blur(24px) saturate(140%);
+    -webkit-backdrop-filter:blur(24px) saturate(140%);
+    box-shadow:
+      0 24px 60px -20px rgba(0,0,0,0.6),
+      inset 0 1px 0 rgba(255,255,255,0.12);
+  }
+
+  /* ---------- Display ---------- */
+  .display{
+    position:relative;
+    border-radius:18px;
+    background:linear-gradient(180deg, rgba(0,0,0,0.28), rgba(0,0,0,0.18));
+    border:1px solid rgba(255,255,255,0.08);
+    padding:22px 20px 18px;
+    margin-bottom:18px;
+    min-height:118px;
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-end;
+    gap:6px;
+    overflow:hidden;
+  }
+  .expression{
+    font-family:'Space Mono', monospace;
+    font-size:15px;
+    color:var(--text-dim);
+    min-height:20px;
+    white-space:nowrap;
+    overflow-x:auto;
+    scrollbar-width:none;
+    letter-spacing:0.02em;
+  }
+  .expression::-webkit-scrollbar{display:none;}
+  .result{
+    font-family:'Space Mono', monospace;
+    font-weight:700;
+    font-size:44px;
+    line-height:1.1;
+    color:var(--text-main);
+    text-shadow:0 0 22px rgba(245,243,255,0.25);
+    white-space:nowrap;
+    overflow-x:auto;
+    scrollbar-width:none;
+    transition:transform 0.15s ease;
+  }
+  .result::-webkit-scrollbar{display:none;}
+  .result.pulse{ animation:pulse 0.22s ease; }
+  @keyframes pulse{
+    0%{transform:scale(1);}
+    40%{transform:scale(1.05);}
+    100%{transform:scale(1);}
+  }
+  .result.error{
+    color:var(--accent-clear);
+    font-size:26px;
+  }
+
+  /* ---------- Keypad ---------- */
+  .pad{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px;
+  }
+
+  button.key{
+    position:relative;
+    overflow:hidden;
+    border:none;
+    outline:none;
+    border-radius:16px;
+    padding:0;
+    height:64px;
+    font-family:'Manrope',sans-serif;
+    font-size:19px;
+    font-weight:600;
+    color:var(--text-main);
+    background:var(--key-bg);
+    border:1px solid rgba(255,255,255,0.06);
+    cursor:pointer;
+    transition:background 0.18s ease, transform 0.08s ease, box-shadow 0.18s ease;
+    -webkit-tap-highlight-color:transparent;
+  }
+  button.key:hover{ background:var(--key-bg-hover); }
+  button.key:active{ transform:scale(0.94); }
+
+  button.key:focus-visible{
+    box-shadow:0 0 0 2px var(--bg-1), 0 0 0 4px var(--accent-eq);
+  }
+
+  button.key.op{
+    color:var(--accent-op);
+    background:rgba(255,159,90,0.08);
+    font-weight:700;
+    font-size:22px;
+  }
+  button.key.op:hover{ background:rgba(255,159,90,0.16); }
+
+  button.key.func{
+    color:var(--accent-clear);
+    background:rgba(255,107,138,0.08);
+    font-size:16px;
+    font-weight:700;
+    letter-spacing:0.02em;
+  }
+  button.key.func:hover{ background:rgba(255,107,138,0.16); }
+
+  button.key.eq{
+    grid-column:span 2;
+    background:linear-gradient(135deg,var(--accent-eq), #4fd1a5);
+    color:#0a0e27;
+    font-weight:800;
+    font-size:22px;
+    box-shadow:0 8px 24px -8px var(--accent-eq-glow);
+  }
+  button.key.eq:hover{ filter:brightness(1.08); }
+
+  button.key.zero{ grid-column:span 2; }
+
+  /* ripple */
+  .ripple{
+    position:absolute;
+    border-radius:50%;
+    background:rgba(255,255,255,0.5);
+    transform:scale(0);
+    animation:rippleAnim 0.55s ease-out forwards;
+    pointer-events:none;
+  }
+  @keyframes rippleAnim{
+    to{ transform:scale(3.2); opacity:0; }
+  }
+
+  /* ---------- Footer & Hints ---------- */
+  .calc-footer{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+    margin-top:2px;
+  }
+
+  .shortcut-pills{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    align-items:center;
+    gap:8px 14px;
+    background:rgba(255,255,255,0.03);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:18px;
+    padding:10px 16px;
+    backdrop-filter:blur(16px);
+    -webkit-backdrop-filter:blur(16px);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.06);
+    width:100%;
+  }
+
+  .shortcut-item{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:11px;
+    color:var(--text-dim);
+  }
+
+  .shortcut-label{
+    font-size:10px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    opacity:0.65;
+  }
+
+  .kbd-group{
+    display:flex;
+    align-items:center;
+    gap:3px;
+  }
+
+  kbd{
+    font-family:'Space Mono', monospace;
+    font-size:10.5px;
+    font-weight:700;
+    color:var(--text-main);
+    background:linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 100%);
+    border:1px solid rgba(255,255,255,0.16);
+    border-bottom:2px solid rgba(255,255,255,0.25);
+    border-radius:6px;
+    padding:2px 6px;
+    box-shadow:0 2px 4px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.15);
+    transition:all 0.15s ease;
+    user-select:none;
+  }
+  kbd:hover{
+    border-color:rgba(255,255,255,0.35);
+    background:linear-gradient(180deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.08) 100%);
+    transform:translateY(-1px);
+    box-shadow:0 4px 8px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.25);
+  }
+
+  .footer-meta{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:11px;
+    color:var(--text-dim);
+    opacity:0.75;
+    letter-spacing:0.02em;
+  }
+  .pulse-dot{
+    width:6px;
+    height:6px;
+    border-radius:50%;
+    background:var(--accent-eq);
+    display:inline-block;
+    box-shadow:0 0 8px var(--accent-eq-glow);
+    animation:statusPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes statusPulse{
+    0%,100%{ opacity:1; transform:scale(1); }
+    50%{ opacity:0.4; transform:scale(0.8); }
+  }
+  .footer-meta .divider{
+    opacity:0.4;
+  }
+
+  button.key.key-active{
+    transform:scale(0.94);
+    background:var(--key-bg-hover);
+    box-shadow:0 0 16px rgba(255,255,255,0.15);
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width:420px){
+    .calc{padding:16px; border-radius:22px;}
+    button.key{height:56px; font-size:17px;}
+    .result{font-size:34px;}
+    .app-wrap{max-width:100%;}
+    .shortcut-pills{padding:8px 12px; gap:6px 10px;}
+    .shortcut-item{font-size:10px;}
+    kbd{font-size:9.5px; padding:1px 5px;}
+  }
+  @media (max-height:700px){
+    .display{min-height:90px; padding:16px 16px 12px;}
+    .result{font-size:34px;}
+    button.key{height:52px;}
+    .pad{gap:9px;}
+    .shortcut-pills{padding:6px 10px;}
+    .footer-meta{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="aurora">
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+  <div class="grain"></div>
+</div>
+
+<div class="app-wrap">
+  <h1 class="app-title">Basic Calculator</h1>
+  <div class="calc">
+    <div class="display">
+      <div class="expression" id="expression">&nbsp;</div>
+      <div class="result" id="result">0</div>
+    </div>
+
+    <div class="pad" id="pad">
+      <button class="key func" data-action="clear">AC</button>
+      <button class="key func" data-action="backspace">⌫</button>
+      <button class="key func" data-action="percent">%</button>
+      <button class="key op" data-action="op" data-value="÷">÷</button>
+
+      <button class="key" data-action="num" data-value="7">7</button>
+      <button class="key" data-action="num" data-value="8">8</button>
+      <button class="key" data-action="num" data-value="9">9</button>
+      <button class="key op" data-action="op" data-value="×">×</button>
+
+      <button class="key" data-action="num" data-value="4">4</button>
+      <button class="key" data-action="num" data-value="5">5</button>
+      <button class="key" data-action="num" data-value="6">6</button>
+      <button class="key op" data-action="op" data-value="−">−</button>
+
+      <button class="key" data-action="num" data-value="1">1</button>
+      <button class="key" data-action="num" data-value="2">2</button>
+      <button class="key" data-action="num" data-value="3">3</button>
+      <button class="key op" data-action="op" data-value="+">+</button>
+
+      <button class="key zero" data-action="num" data-value="0">0</button>
+      <button class="key" data-action="decimal">.</button>
+      <button class="key eq" data-action="equals">=</button>
+    </div>
+  </div>
+
+  <footer class="calc-footer">
+    <div class="shortcut-pills">
+      <div class="shortcut-item">
+        <span class="shortcut-label">Numbers</span>
+        <div class="kbd-group"><kbd>0</kbd>–<kbd>9</kbd></div>
+      </div>
+      <div class="shortcut-item">
+        <span class="shortcut-label">Ops</span>
+        <div class="kbd-group"><kbd>+</kbd><kbd>−</kbd><kbd>*</kbd><kbd>/</kbd></div>
+      </div>
+      <div class="shortcut-item">
+        <span class="shortcut-label">Equal</span>
+        <div class="kbd-group"><kbd>↵</kbd></div>
+      </div>
+      <div class="shortcut-item">
+        <span class="shortcut-label">Clear</span>
+        <div class="kbd-group"><kbd>Esc</kbd></div>
+      </div>
+      <div class="shortcut-item">
+        <span class="shortcut-label">Erase</span>
+        <div class="kbd-group"><kbd>⌫</kbd></div>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  const expressionEl = document.getElementById('expression');
+  const resultEl = document.getElementById('result');
+  const pad = document.getElementById('pad');
+
+  let current = '0';        // number currently being typed
+  let previous = null;      // stored left-hand operand
+  let operator = null;      // pending operator (+ − × ÷)
+  let expressionText = '';  // for the top ghost line
+  let justEvaluated = false;
+
+  const OP_MAP = { '+':'+', '−':'-', '×':'*', '÷':'/' };
+
+  function formatNumber(numStr){
+    if (numStr === 'Error') return numStr;
+    let [intPart, decPart] = numStr.split('.');
+    const neg = intPart.startsWith('-');
+    if (neg) intPart = intPart.slice(1);
+    intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    let out = (neg ? '-' : '') + intPart;
+    if (decPart !== undefined) out += '.' + decPart;
+    return out;
+  }
+
+  function updateDisplay(){
+    resultEl.classList.remove('error');
+    resultEl.textContent = formatNumber(current);
+    expressionEl.textContent = expressionText || '\u00A0';
+  }
+
+  function pulseResult(){
+    resultEl.classList.remove('pulse');
+    void resultEl.offsetWidth; // reflow to restart animation
+    resultEl.classList.add('pulse');
+  }
+
+  function inputDigit(d){
+    if (justEvaluated){
+      current = '0';
+      expressionText = '';
+      justEvaluated = false;
+    }
+    if (current === '0') current = d;
+    else if (current.replace('-','').replace('.','').length < 15) current += d;
+    updateDisplay();
+  }
+
+  function inputDecimal(){
+    if (justEvaluated){
+      current = '0';
+      expressionText = '';
+      justEvaluated = false;
+    }
+    if (!current.includes('.')) current += '.';
+    updateDisplay();
+  }
+
+  function chooseOperator(symbol){
+    if (operator && !justEvaluated && current !== ''){
+      compute();
+    }
+    previous = current;
+    operator = symbol;
+    expressionText = formatNumber(previous) + ' ' + symbol;
+    current = '0';
+    justEvaluated = false;
+    updateDisplay();
+  }
+
+  function compute(){
+    if (operator === null || previous === null) return;
+    const a = parseFloat(previous);
+    const b = parseFloat(current);
+    let res;
+    switch(OP_MAP[operator]){
+      case '+': res = a + b; break;
+      case '-': res = a - b; break;
+      case '*': res = a * b; break;
+      case '/':
+        if (b === 0){
+          current = 'Error';
+          expressionText = formatNumber(previous) + ' ' + operator + ' ' + formatNumber(String(b));
+          resultEl.textContent = 'Can\u2019t divide by zero';
+          resultEl.classList.add('error');
+          previous = null; operator = null; justEvaluated = true;
+          pulseResult();
+          return;
+        }
+        res = a / b; break;
+      default: return;
+    }
+    // trim floating point noise
+    res = Math.round((res + Number.EPSILON) * 1e10) / 1e10;
+    expressionText = formatNumber(previous) + ' ' + operator + ' ' + formatNumber(current) + ' =';
+    current = String(res);
+    previous = null;
+    operator = null;
+    justEvaluated = true;
+    updateDisplay();
+    pulseResult();
+  }
+
+  function percent(){
+    const val = parseFloat(current);
+    if (isNaN(val)) return;
+    current = String(val / 100);
+    updateDisplay();
+    pulseResult();
+  }
+
+  function backspace(){
+    if (justEvaluated) return;
+    if (current.length <= 1 || (current.length === 2 && current.startsWith('-'))){
+      current = '0';
+    } else {
+      current = current.slice(0, -1);
+    }
+    updateDisplay();
+  }
+
+  function clearAll(){
+    current = '0';
+    previous = null;
+    operator = null;
+    expressionText = '';
+    justEvaluated = false;
+    updateDisplay();
+    pulseResult();
+  }
+
+  function spawnRipple(btn, x, y){
+    const r = document.createElement('span');
+    r.className = 'ripple';
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    r.style.width = r.style.height = size + 'px';
+    r.style.left = (x - rect.left - size/2) + 'px';
+    r.style.top = (y - rect.top - size/2) + 'px';
+    btn.appendChild(r);
+    setTimeout(()=> r.remove(), 550);
+  }
+
+  function pressKey(btn, clientX, clientY){
+    if (btn.style.position !== 'relative') btn.style.position = 'relative';
+    if (typeof clientX === 'number'){
+      spawnRipple(btn, clientX, clientY);
+    } else {
+      const rect = btn.getBoundingClientRect();
+      spawnRipple(btn, rect.left + rect.width/2, rect.top + rect.height/2);
+    }
+
+    const action = btn.dataset.action;
+    const value = btn.dataset.value;
+
+    switch(action){
+      case 'num': inputDigit(value); break;
+      case 'decimal': inputDecimal(); break;
+      case 'op': chooseOperator(value); break;
+      case 'equals': compute(); break;
+      case 'percent': percent(); break;
+      case 'backspace': backspace(); break;
+      case 'clear': clearAll(); break;
+    }
+  }
+
+  pad.addEventListener('click', (e)=>{
+    const btn = e.target.closest('button.key');
+    if (!btn) return;
+    pressKey(btn, e.clientX, e.clientY);
+  });
+
+  // ---------- Keyboard support ----------
+  const keyToSelector = {
+    '0':'[data-action="num"][data-value="0"]','1':'[data-action="num"][data-value="1"]',
+    '2':'[data-action="num"][data-value="2"]','3':'[data-action="num"][data-value="3"]',
+    '4':'[data-action="num"][data-value="4"]','5':'[data-action="num"][data-value="5"]',
+    '6':'[data-action="num"][data-value="6"]','7':'[data-action="num"][data-value="7"]',
+    '8':'[data-action="num"][data-value="8"]','9':'[data-action="num"][data-value="9"]',
+    '.':'[data-action="decimal"]',
+    '+':'[data-action="op"][data-value="+"]',
+    '-':'[data-action="op"][data-value="−"]',
+    '*':'[data-action="op"][data-value="×"]',
+    '/':'[data-action="op"][data-value="÷"]',
+    '%':'[data-action="percent"]',
+    'Enter':'[data-action="equals"]',
+    '=':'[data-action="equals"]',
+    'Backspace':'[data-action="backspace"]',
+    'Escape':'[data-action="clear"]',
+  };
+
+  window.addEventListener('keydown', (e)=>{
+    const sel = keyToSelector[e.key];
+    if (!sel) return;
+    e.preventDefault();
+    const btn = pad.querySelector(sel);
+    if (btn){
+      btn.classList.add('key-active');
+      pressKey(btn);
+      setTimeout(()=> btn.classList.remove('key-active'), 120);
+    }
+  });
+
+  updateDisplay();
+})();
+</script>
+
+</body>
+</html>
